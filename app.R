@@ -2,6 +2,9 @@ library(shiny)
 library(shinydashboard)
 library(DT)
 library(tidyverse)
+library(lubridate)
+library(xts)
+library(dygraphs)
 
 data <- as.data.frame(readRDS("dataforapp_w_stats.rds"), stringsAsFactors = FALSE)
 
@@ -39,8 +42,10 @@ ui <- function(request) {
       column(width = 12, 
              infoBoxOutput("stats_school"),
              infoBoxOutput("stats_dept"),
-             infoBoxOutput("stats_rg"),
-             valueBoxOutput("toptweet")),
+             infoBoxOutput("stats_rg")),
+             valueBoxOutput("toptweet"),
+      column (width = 6,
+             dygraphOutput("timeseries", height = "100px")),
       column(width = 12,
              height = "600px",
              DT::dataTableOutput("summary", 
@@ -161,6 +166,7 @@ server <- function(input, output, session) {
   })
   
   
+  
   totable <- reactive({
     df <- rgData()
     
@@ -169,6 +175,36 @@ server <- function(input, output, session) {
       select(School, `Department or research area`, `Research group`, Year, Article, Tweet, Date)
   })
 
+  
+  
+  totimeseries <- reactive({
+    
+    ttweet <-  rgData()[rgData()$Tweets_by_article == max(rgData()$Tweets_by_article),]
+    
+    if ( nrow(ttweet) >= 1 & ttweet$Tweets_by_article[1] != 0 ) {
+      
+      stats <- ttweet %>%
+        mutate(date_col = date(Date)) %>%
+        group_by(date_col) %>%
+        summarize(value = n()) %>% 
+        column_to_rownames(., "date_col")
+      
+      stats.xts <- as.xts(stats)
+      
+      
+    }
+    else return(NULL)
+    
+  })
+  
+  
+  
+  output$timeseries <- renderDygraph({
+    if ( !is.null(totimeseries()) )
+      dygraph(totimeseries()) 
+  })
+  
+  
   
   output$summary <- DT::renderDataTable({
     dat <- datatable(totable(), 
