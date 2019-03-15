@@ -39,13 +39,12 @@ ui <- function(request) {
   
   body <- dashboardBody(
     fluidRow(
-      column(width = 12, 
-             infoBoxOutput("stats_school"),
-             infoBoxOutput("stats_dept"),
-             infoBoxOutput("stats_rg")),
-             valueBoxOutput("toptweet"),
-      column (width = 6,
-             dygraphOutput("timeseries", height = "100px")),
+      column(width = 6,
+            valueBoxOutput("toptweet")),
+      column(width = 6,
+             dygraphOutput("timeseries", height = "100px"))
+      ),
+    fluidRow(
       column(width = 12,
              height = "600px",
              DT::dataTableOutput("summary", 
@@ -122,34 +121,36 @@ server <- function(input, output, session) {
   })
   
  
-  output$stats_school <- renderInfoBox({
-    infoBox(
-      "Tweets at top level",
-     paste0(rgData()$Tweets_by_school[1], " (",  rgData()$Tweets_article_ratio_school[1], ")"),
-     icon = icon("twitter"),
-     width = NULL
-    )
-  })
-  
-  output$stats_dept <- renderInfoBox({
-    infoBox(
-      "Tweets at department level",
-      paste0(rgData()$Tweets_by_dept[1], " (", rgData()$Tweets_article_ratio_dept[1], ")"),
-      icon = icon("twitter"),
-      color = "olive",
-      width = NULL
-    )
-  })
-  
-  output$stats_rg <- renderInfoBox({
-    infoBox(
-      "Tweets at research group level",
-      paste0(rgData()$Tweets_by_rg[1], " (",  rgData()$Tweets_article_ratio_rg[1], ")"),
-      icon = icon("twitter"),
-      color = "orange",
-      width = NULL
-    )
-  })
+  # This seem non-interesting values in this app
+  #
+  # output$stats_school <- renderInfoBox({
+  #   infoBox(
+  #     "Tweets at top level",
+  #    paste0(rgData()$Tweets_by_school[1], " (",  rgData()$Tweets_article_ratio_school[1], ")"),
+  #    icon = icon("twitter"),
+  #    width = NULL
+  #   )
+  # })
+  # 
+  # output$stats_dept <- renderInfoBox({
+  #   infoBox(
+  #     "Tweets at department level",
+  #     paste0(rgData()$Tweets_by_dept[1], " (", rgData()$Tweets_article_ratio_dept[1], ")"),
+  #     icon = icon("twitter"),
+  #     color = "olive",
+  #     width = NULL
+  #   )
+  # })
+  # 
+  # output$stats_rg <- renderInfoBox({
+  #   infoBox(
+  #     "Tweets at research group level",
+  #     paste0(rgData()$Tweets_by_rg[1], " (",  rgData()$Tweets_article_ratio_rg[1], ")"),
+  #     icon = icon("twitter"),
+  #     color = "orange",
+  #     width = NULL
+  #   )
+  # })
   
 
   output$toptweet <- renderValueBox({
@@ -159,7 +160,7 @@ server <- function(input, output, session) {
              paste0(rgData()[rgData()$Tweets_by_article == max(rgData()$Tweets_by_article), "title"][1], " (" , rgData()[rgData()$Tweets_by_article == max(rgData()$Tweets_by_article), "Tweets_by_article"][1], " times)")),
       icon = icon("twitter"),
       color = "orange",
-      width = 12,
+      width = NULL,
       href = ifelse(max(rgData()$Tweets_by_article) == 0, "-", 
                     str_extract(rgData()[rgData()$Tweets_by_article == max(rgData()$Tweets_by_article), "Article"][1], "https://[^']+"))
     )
@@ -182,7 +183,6 @@ server <- function(input, output, session) {
     ttweet <-  rgData()[rgData()$Tweets_by_article == max(rgData()$Tweets_by_article),]
     
     if ( nrow(ttweet) >= 1 & ttweet$Tweets_by_article[1] != 0 ) {
-      
       stats <- ttweet %>%
         mutate(date_col = date(Date)) %>%
         group_by(date_col) %>%
@@ -190,11 +190,8 @@ server <- function(input, output, session) {
         column_to_rownames(., "date_col")
       
       stats.xts <- as.xts(stats)
-      
-      
     }
     else return(NULL)
-    
   })
   
   

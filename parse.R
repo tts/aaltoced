@@ -30,8 +30,22 @@ alldata <- left_join(withdois, res)
 
 write.csv(alldata, "alldata.csv", row.names = FALSE)
 
-data2app <- alldata %>% 
-  rename(tweet = subj.pid) %>% 
+# Note that the format of Tweet and author IDs changed in January 2019. 
+# They are now non-resolvable URIs. 
+# "To read a Tweet in your browser, you can visit the URL: http://twitter.com/statuses/«ID»"
+newtweets <- alldata %>% 
+  filter(grepl("twitter://", subj.pid)) %>% 
+  mutate(tweet_id = str_extract(subj.pid, "[0-9]+")) %>% 
+  mutate(tweet = paste0("http://twitter.com/statuses/", tweet_id)) %>% 
+  select(-subj.pid, -tweet_id)
+
+oldtweets <- alldata %>% 
+  filter(!grepl("twitter://", subj.pid)) %>% 
+  rename(tweet = subj.pid)
+
+alltweets <- rbind(newtweets, oldtweets) 
+
+data2app <- alltweets %>% 
   filter(unit != 'Not published at Aalto University') %>% 
   mutate(year = str_sub(year, -4)) %>% 
   select(unit, parent, doi, obj_id, title, year, occurred_at, tweet)
@@ -97,6 +111,7 @@ stats_raw <- dataforapp %>%
 dataforapp_w_stats <- left_join(dataforapp, stats_raw)
 
 saveRDS(dataforapp_w_stats, "dataforapp_w_stats.rds")
+
 
 
 
