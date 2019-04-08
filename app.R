@@ -32,17 +32,19 @@ ui <- function(request) {
                   selected = NULL)
     ),
     tags$div(class="form-group shiny-input-container", 
-             HTML("<p>Altmetrics event data by Crossref as of 2019-02-17</p>
+             HTML("<p>CrossRef Event Data as of 2019-04-08</p>
                   <p><a href='https://blogs.aalto.fi/suoritin/'>About (to do)</a></p>")
              ))
   
   
   body <- dashboardBody(
     fluidRow(
-      column(width = 6,
-            valueBoxOutput("toptweet")),
-      column(width = 6,
-             dygraphOutput("timeseries", height = "100px"))
+      box(
+        width = 6, valueBoxOutput("toptweet", width = "100%")
+        ),
+      box(
+        width = 6, dygraphOutput("timeseries", width = "100%", height = "100px")
+        )
       ),
     fluidRow(
       column(width = 12,
@@ -160,22 +162,20 @@ server <- function(input, output, session) {
              paste0(rgData()[rgData()$Tweets_by_article == max(rgData()$Tweets_by_article), "title"][1], " (" , rgData()[rgData()$Tweets_by_article == max(rgData()$Tweets_by_article), "Tweets_by_article"][1], " times)")),
       icon = icon("twitter"),
       color = "orange",
-      width = NULL,
+      width = "100%",
       href = ifelse(max(rgData()$Tweets_by_article) == 0, "-", 
                     str_extract(rgData()[rgData()$Tweets_by_article == max(rgData()$Tweets_by_article), "Article"][1], "https://[^']+"))
     )
   })
-  
-  
-  
+
   totable <- reactive({
     df <- rgData()
     
     df <- df %>% 
       rename(Tweets = Tweets_by_article) %>% 
-      select(School, `Department or research area`, `Research group`, Year, Article, Tweet, Date)
+      select(School, `Department or research area`, `Research group`, Year, Article, Link, `Screen name of (re)tweeter`, Description, Location, Tweet, Retweet, Date)
   })
-
+  
   
   
   totimeseries <- reactive({
