@@ -1,25 +1,43 @@
 library(crevents)
 library(tidyverse)
 library(readxl)
+library(rtweet)
 
-aalto <- read.csv("DOI_q-08_02_2019.csv", stringsAsFactors = FALSE)
-names(aalto) <- c("unit", "parent", "doi", "title", "subtitle", "journal", "year", "isbn", "issn", "isbne")
+aalto <- read_excel("DOI_q-05_04_2019.xls")
+
+aalto <- aalto %>% 
+  rename(unit = `Organisational unit name-0`,
+         parent = `Parent organisational units-1`,
+         doi = `Electronic version(s) of this work. (By uploading the full text file authors accept the terms of electronic publishing))-2`,
+         title = `Title of the contribution in original language-3`,
+         year = `Publication statuses and dates > Date > Year-6`) %>% 
+  select(unit, parent, doi, title, year)
 
 withdois <- aalto %>% 
-  filter(doi != '') %>% 
-  distinct(doi, .keep_all = TRUE) %>% 
-  select(-isbn, -isbne)
+  mutate(uniquedoi = substring(doi, regexpr(",", doi) + 1),
+         uniquedoi = substring(uniquedoi, regexpr(":", uniquedoi) + 1),
+         uniquedoi = gsub("https://doi.org/", "", uniquedoi),
+         uniquedoi = gsub("https://dx.doi.org/", "", uniquedoi),
+         uniquedoi = gsub("//dx.doi.org/", "", uniquedoi),
+         uniquedoi = gsub("//doi.org/", "", uniquedoi),
+         uniquedoi = gsub("\\s", "", uniquedoi)) %>% 
+  filter(uniquedoi != '') %>% 
+  rename(olddoi = doi,
+         doi = uniquedoi) %>% 
+  distinct(doi, .keep_all = TRUE) 
 
-dois <- as.list(withdois[, "doi"])
+withdois$doi[withdois$doi == "0.3389/fpls.2014.00271"] <- "10.3389/fpls.2014.00271"
+
+dois <- as.vector(unlist(as.list(withdois[, "doi"])))
 
 tweeted <- function(doi, from, to){
   print(paste0("Querying ", doi))
-  x <- crev_query(obj_id = doi, source = "twitter", # with default row limit 1000
+  x <- crev_query(obj_id = doi, source = "twitter",
                   from_occurred_date = from, until_occurred_date = to)
   return(x$message$events)
 }
 
-res <- map_dfr(dois, ~ tweeted(.x, "2017-01-01", "2019-02-17"))
+res <- map_dfr(dois, ~ tweeted(.x, "2017-01-01", "2019-04-05"))
 
 write.csv(res, "events.csv", row.names = FALSE)
 
@@ -28,7 +46,7 @@ res <- res %>%
 
 alldata <- left_join(withdois, res)
 
-write.csv(alldata, "alldata.csv", row.names = FALSE)
+write.csv(alldata, "alldata_20190408.csv", row.names = FALSE)
 
 # Note that the format of Tweet and author IDs changed in January 2019. 
 # They are now non-resolvable URIs. 
@@ -45,10 +63,38 @@ oldtweets <- alldata %>%
 
 alltweets <- rbind(newtweets, oldtweets) 
 
-data2app <- alltweets %>% 
+#------------------------
+#
+# Tweets
+#
+#------------------------
+
+appname <- "rtweet_tokens_ttso"
+key <- "--"
+secret <- "--"
+
+twitter_token <- create_token(
+  app = appname,
+  consumer_key = key,
+  consumer_secret = secret)
+
+alltweets <- alltweets %>% 
+ mutate(tweet_status = str_extract(tweet, "[0-9]+$")) 
+
+tweet_statuses_fetched <- rtweet::lookup_statuses(alltweets$tweet_status)
+
+saveRDS(tweet_statuses_fetched, file = "tweet_status_fetched_20190408.RDS")
+
+tweet_statuses_fetched_selection <- tweet_statuses_fetched %>% 
+  select(status_id, screen_name, description, followers_count, text, is_retweet, location,
+         retweet_status_id, retweet_screen_name, retweet_description, retweet_followers_count, retweet_text)
+
+tweets_combined <- inner_join(alltweets, tweet_statuses_fetched_selection, by = c("tweet_status" = "status_id"))
+
+data2app <- tweets_combined %>% 
   filter(unit != 'Not published at Aalto University') %>% 
   mutate(year = str_sub(year, -4)) %>% 
-  select(unit, parent, doi, obj_id, title, year, occurred_at, tweet)
+  select(unit, parent, doi, obj_id, title, year, occurred_at, tweet, screen_name, description, text, is_retweet, location)
 
 #-------------------------
 #
@@ -71,11 +117,17 @@ data_org <- data_org_raw %>%
 
 dataforapp <- data_org %>% 
   rename(Date = occurred_at,
-         Tweet = tweet,
+         Link = tweet,
+         Tweet = text,
+         Retweet = is_retweet,
+         `Screen name of (re)tweeter` = screen_name,
+         Description = description,
+         #Followers = folcount,
+         Location = location,
          Year = year) %>% 
-  mutate(Tweet = ifelse(!is.na(Tweet), paste0("<a target='blank' href='", Tweet, "'>Tweet</a>"), ""),
+  mutate(Link = ifelse(!is.na(Link), paste0("<a target='blank' href='", Link, "'>Link to tweet</a>"), ""),
          Article = paste0("<a target='blank' href='https://doi.org/", doi, "'>", title, "</a>")) %>% 
-  select(School, `Department or research area`, `Research group`, Year, Article, title, Tweet, Date) %>% 
+  select(School, `Department or research area`, `Research group`, Year, Article, title, Tweet, Link, `Screen name of (re)tweeter`, Description, Location, Date, Retweet) %>% 
   arrange(School, `Department or research area`, `Research group`, Year, Article, Date)
 
 
@@ -88,24 +140,28 @@ dataforapp <- data_org %>%
 stats_raw <- dataforapp %>% 
   group_by(School) %>% 
   mutate(Articles_by_school = n(),
-         Tweets_by_school = sum(Tweet != ""),
+         #Tweets_by_school = sum(Tweet != ""),
+         Tweets_by_school = sum(!is.na(Tweet)),
          Tweets_article_ratio_school = paste0(round(Tweets_by_school/Articles_by_school,1),"%")) %>% 
   arrange(desc(Tweets_by_school)) %>% 
   ungroup() %>% 
   group_by(School, `Department or research area`) %>% 
   mutate(Articles_by_dept = n(),
-         Tweets_by_dept = sum(Tweet != ""),
+         #Tweets_by_dept = sum(Tweet != ""),
+         Tweets_by_dept = sum(!is.na(Tweet)),
          Tweets_article_ratio_dept = paste0(round(Tweets_by_dept/Articles_by_dept,1),"%")) %>% 
   arrange(desc(Tweets_by_dept)) %>% 
   ungroup() %>% 
   group_by(School, `Department or research area`,`Research group`) %>% 
   mutate(Articles_by_rg = n(),
-         Tweets_by_rg = sum(Tweet != ""),
+         #Tweets_by_rg = sum(Tweet != ""),
+         Tweets_by_rg = sum(!is.na(Tweet)),
          Tweets_article_ratio_rg = paste0(round(Tweets_by_rg/Articles_by_rg,1),"%")) %>% 
   arrange(desc(Tweets_by_rg)) %>% 
   ungroup() %>% 
   group_by(School, `Department or research area`, `Research group`, Article) %>% 
   mutate(Tweets_by_article = sum(Tweet != "")) %>% 
+  #mutate(Tweets_by_article = sum(!is.na(Tweet))) %>% 
   ungroup() 
 
 dataforapp_w_stats <- left_join(dataforapp, stats_raw)
