@@ -15,6 +15,8 @@ aalto <- aalto %>%
          id = `UUID-15`) %>% 
   select(unit, parent, doi, title, year, id)
 
+percentage_of_dois <- (nrow(aalto[!is.na(aalto$doi),]) / nrow(aalto)) * 100
+
 withdois <- aalto %>% 
   mutate(uniquedoi = substring(doi, regexpr(",", doi) + 1),
          uniquedoi = substring(uniquedoi, regexpr(":", uniquedoi) + 1),
@@ -91,6 +93,7 @@ tweet_statuses_fetched_selection <- tweet_statuses_fetched %>%
   select(status_id, screen_name, description, followers_count, text, is_retweet, location,
          retweet_status_id, retweet_screen_name, retweet_description, retweet_followers_count, retweet_text)
 
+# Leaving out non-tweeted rows
 tweets_combined <- inner_join(alltweets, tweet_statuses_fetched_selection, by = c("tweet_status" = "status_id"))
 
 data2app <- tweets_combined %>% 
@@ -128,9 +131,14 @@ dataforapp <- data_org %>%
          Location = location,
          Year = year,
          Id = id.x) %>% 
+  group_by(Id) %>%
+  mutate(Elapsed = max(ymd_hms(Date)) - min(ymd_hms(Date)),
+         Elapsed_in_hours = Elapsed / 3600,
+         `Life span (hr)` = as.numeric(round(Elapsed_in_hours, 1))) %>% # Time diff in hours between the first and last/latest tweet
+  ungroup() %>% 
   mutate(Link = ifelse(!is.na(Link), paste0("<a target='blank' href='", Link, "'>Link to tweet</a>"), ""),
          Article = paste0("<a target='blank' href='https://research.aalto.fi/en/publications/id(", Id, ").html'>", title, "</a>")) %>% 
-  select(School, `Department or research area`, `Research group`, Year, Article, title, Tweet, Link, `Screen name of (re)tweeter`, Description, Location, Followers, Date, Retweet) %>% 
+  select(School, `Department or research area`, `Research group`, Year, Article, title, Tweet, Link, `Screen name of (re)tweeter`, Description, Location, Followers, Date, Retweet, `Life span (hr)`) %>% 
   arrange(School, `Department or research area`, `Research group`, Year, Article, Date)
 
 
@@ -161,7 +169,6 @@ stats_raw <- dataforapp %>%
   ungroup() %>% 
   group_by(School, `Department or research area`, `Research group`, Article) %>% 
   mutate(Tweets_by_article = sum(Tweet != "")) %>% 
-  #mutate(Tweets_by_article = sum(!is.na(Tweet))) %>% 
   ungroup() 
 
 dataforapp_w_stats <- left_join(dataforapp, stats_raw)
