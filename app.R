@@ -173,7 +173,7 @@ server <- function(input, output, session) {
     
     df <- df %>% 
       rename(Tweets = Tweets_by_article) %>% 
-      select(School, `Department or research area`, `Research group`, Year, Article, Link, `Screen name of (re)tweeter`, Description, Location, Tweet, Retweet, Date)
+      select(School, `Department or research area`, `Research group`, Year, Article, Link, `Screen name of (re)tweeter`, Description, Location, Followers, Tweet, Retweet, Date)
   })
   
   
