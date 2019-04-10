@@ -2,14 +2,24 @@
 grep -P '^\s*<td align="left">10.\d{4,9}/[-._;()/:A-Z0-9]+</td>\s*$' file.html
 
 #----- sed
+
+The sed option r stands for extended regular expressions, and i means that the replacements are written to the original file. % replaces the default forward slash in the substitute command (easier because it doesn't interfere with the slash in the closing HTML element). Parentheses wrap matching strings into groups which can be back-referenced later on, so \1 back-references the 1st match, \2the 2nd, etc.
+
 sed -ri 's%<head>%<head>\n\n\t<script type="text/javascript" src="https://d1bxh8uas1mnw7.cloudfront.net/assets/embed.js"></script>%g;s%(<td align="left">)(10\.[0-9]+/[^<]+)(</td>)%\1\2 <div class="altmetric-embed"></div>\3%g' file.html
 
 #----- awk
+
+Compared to sed, awk code looks more verbose because of double slashes.
+
 awk '{r = gensub(/^(\s*<td>(10\.[0-9]{4,9}\/[^<]+)()/, "\\1\\2\\3 data-doi=\\2\\4\\2>\\5", "g"); print r;}' file.html
 
 #----- XSLT
 
-parse.xsl
+First remove DOCTYPE, add closing br, and add Altmetric JS
+
+sed -i 's%<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">%%g ; s%<br>%<br></br>%g ; s%<head>%<head>\n\n\t<script type="text/javascript" src="https://d1bxh8uas1mnw7.cloudfront.net/assets/embed.js"></script>%g' file.html
+
+Parse.xsl with an identity transformation template, and a matching template for tr.
 
 <?xml version="1.0"?>
 <xsl:stylesheet
@@ -55,9 +65,13 @@ parse.xsl
 
 </xsl:stylesheet>
 
+Finally, transform with an XSLT engine
+
 java -jar ~/saxonee/saxon9ee.jar file.html parse.xsl > file_transformed.html
 
 #----- Javascript
+
+When the code below is included into the head of the HTML page inside a script element (and the Altmetric Javascript link is there too) and the page is fully reloaded, all rows of the first table element are traversed one by one, and a new div element with the needed attributes is appended after every second cell, i.e. that one with the DOI. 
 
 document.addEventListener('DOMContentLoaded', (event) => {
 	  
