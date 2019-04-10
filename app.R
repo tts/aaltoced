@@ -32,26 +32,42 @@ ui <- function(request) {
                   selected = NULL)
     ),
     tags$div(class="form-group shiny-input-container", 
-             HTML("<p>CrossRef Event Data as of 2019-04-08</p>
-                  <p><a href='https://blogs.aalto.fi/suoritin/'>About (to do)</a></p>")
+             HTML("<p>Aalto University CRIS data and CrossRef Event Data as of 2019-04-08</p>
+                  <p><a href='https://blogs.aalto.fi/suoritin/2019/04/10/everyday-altmetrics/'>About</a></p>")
              ))
   
   
   body <- dashboardBody(
     fluidRow(
       box(
-        width = 6, valueBoxOutput("toptweet", width = "100%")
+        width = 4, valueBoxOutput("toptweet", width = "100%")
         ),
       box(
-        width = 6, dygraphOutput("timeseries", width = "100%", height = "100px")
-        )
+        width = 4, dygraphOutput("timeseries", width = "100%", height = "150px")
+        ),
+      box(
+        width = 4, valueBoxOutput("mediantweet", width = "100%")
+      )),
+    fluidRow(
+      box(
+        width = 4, valueBoxOutput("longestlastingtweet", width = "100%")
       ),
+      box(
+        width = 4, dygraphOutput("timeseries2", width = "100%", height = "150px")
+      ),
+      box(
+        width = 4, valueBoxOutput("medianage", width = "100%")
+      )),
     fluidRow(
       column(width = 12,
              height = "600px",
              DT::dataTableOutput("summary", 
                                  width = "100%",
                                  height = "600px"))
+    ),
+    fluidRow(
+      box(
+        width = 1, downloadButton("data_aalto", "Download"))
     )
   )
   
@@ -122,38 +138,12 @@ server <- function(input, output, session) {
 
   })
   
- 
-  # This seem non-interesting values in this app
-  #
-  # output$stats_school <- renderInfoBox({
-  #   infoBox(
-  #     "Tweets at top level",
-  #    paste0(rgData()$Tweets_by_school[1], " (",  rgData()$Tweets_article_ratio_school[1], ")"),
-  #    icon = icon("twitter"),
-  #    width = NULL
-  #   )
-  # })
-  # 
-  # output$stats_dept <- renderInfoBox({
-  #   infoBox(
-  #     "Tweets at department level",
-  #     paste0(rgData()$Tweets_by_dept[1], " (", rgData()$Tweets_article_ratio_dept[1], ")"),
-  #     icon = icon("twitter"),
-  #     color = "olive",
-  #     width = NULL
-  #   )
-  # })
-  # 
-  # output$stats_rg <- renderInfoBox({
-  #   infoBox(
-  #     "Tweets at research group level",
-  #     paste0(rgData()$Tweets_by_rg[1], " (",  rgData()$Tweets_article_ratio_rg[1], ")"),
-  #     icon = icon("twitter"),
-  #     color = "orange",
-  #     width = NULL
-  #   )
-  # })
   
+  #------------
+  #
+  # Output
+  #
+  #------------
 
   output$toptweet <- renderValueBox({
     valueBox(
@@ -167,13 +157,44 @@ server <- function(input, output, session) {
                     str_extract(rgData()[rgData()$Tweets_by_article == max(rgData()$Tweets_by_article), "Article"][1], "https://[^']+"))
     )
   })
+  
+  output$mediantweet <- renderValueBox({
+    valueBox(
+      value = "Median number of tweets",
+      median(rgData()$Tweets_by_article),
+      icon = icon("twitter"),
+      color = "teal",
+      width = "100%")
+  })
+  
+  output$longestlastingtweet <- renderValueBox({
+    valueBox(
+      value = "Longest life span",
+             paste0(rgData()[rgData()$`Life span (hr)` == max(rgData()$`Life span (hr)`), "title"][1], " (" , rgData()[rgData()$`Life span (hr)` == max(rgData()$`Life span (hr)`), "Life span (hr)"][1], " hours)"),
+      icon = icon("twitter"),
+      color = "navy",
+      width = "100%",
+      href = str_extract(rgData()[rgData()$`Life span (hr)` == max(rgData()$`Life span (hr)`), "Article"][1], "https://[^']+")
+    )
+  })
+  
+  output$medianage <- renderValueBox({
+    valueBox(
+      value = "Median life span", 
+      paste0(median(rgData()$`Life span (hr)`), " hours"),
+      icon = icon("twitter"),
+      color = "light-blue",
+      width = "100%"
+    )
+  })
 
+  
   totable <- reactive({
     df <- rgData()
     
     df <- df %>% 
       rename(Tweets = Tweets_by_article) %>% 
-      select(School, `Department or research area`, `Research group`, Year, Article, Link, `Screen name of (re)tweeter`, Description, Location, Followers, Tweet, Retweet, Date)
+      select(School, `Department or research area`, `Research group`, Year, Article, Link, `Screen name of (re)tweeter`, Description, Location, Followers, Tweet, Retweet, Date, `Life span (hr)`)
   })
   
   
@@ -196,11 +217,32 @@ server <- function(input, output, session) {
   
   
   
+  totimeseries2 <- reactive({
+    
+    ltweet <-  rgData()[rgData()$`Life span (hr)` == max(rgData()$`Life span (hr)`), ]
+    
+    if ( nrow(ltweet) >= 1 & ltweet$Tweets_by_article[1] != 0 ) {
+      stats2 <- ltweet %>%
+        mutate(date_col = date(Date)) %>%
+        group_by(date_col) %>%
+        summarize(value = n()) %>% 
+        column_to_rownames(., "date_col")
+      
+      stats2.xts <- as.xts(stats2)
+    }
+    else return(NULL)
+  })
+  
+  
   output$timeseries <- renderDygraph({
     if ( !is.null(totimeseries()) )
       dygraph(totimeseries()) 
   })
   
+  output$timeseries2 <- renderDygraph({
+    if ( !is.null(totimeseries2()) )
+      dygraph(totimeseries2()) 
+  })
   
   
   output$summary <- DT::renderDataTable({
@@ -212,6 +254,20 @@ server <- function(input, output, session) {
     return(dat)
     
   })
+  
+  
+  output$data_aalto = downloadHandler(
+    filename = function() {
+      filename = 'data_aalto.csv'
+    },
+    content = function(file) {
+      {
+        write.csv(rgData(), 'temp.csv', row.names = FALSE)
+        file.rename('temp.csv', file)    
+      } 
+    }
+  )
+  
   
 }
 
