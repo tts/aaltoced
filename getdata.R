@@ -3,15 +3,17 @@ library(tidyverse)
 library(readxl)
 library(rtweet)
 
-aalto <- read_excel("DOI_q-05_04_2019.xls")
+# Had to first save this to xslx via OO, see https://github.com/tidyverse/readxl/issues/496#issuecomment-436355364
+aalto <- read_excel("DOI_q-08_04_2019.xlsx")
 
 aalto <- aalto %>% 
   rename(unit = `Organisational unit name-0`,
          parent = `Parent organisational units-1`,
          doi = `Electronic version(s) of this work. (By uploading the full text file authors accept the terms of electronic publishing))-2`,
          title = `Title of the contribution in original language-3`,
-         year = `Publication statuses and dates > Date > Year-6`) %>% 
-  select(unit, parent, doi, title, year)
+         year = `Publication statuses and dates > Date > Year-6`,
+         id = `UUID-15`) %>% 
+  select(unit, parent, doi, title, year, id)
 
 withdois <- aalto %>% 
   mutate(uniquedoi = substring(doi, regexpr(",", doi) + 1),
@@ -37,14 +39,14 @@ tweeted <- function(doi, from, to){
   return(x$message$events)
 }
 
-res <- map_dfr(dois, ~ tweeted(.x, "2017-01-01", "2019-04-05"))
+res <- map_dfr(dois, ~ tweeted(.x, "2017-01-01", "2019-04-08"))
 
-write.csv(res, "events.csv", row.names = FALSE)
+write.csv(res, "events_20190408.csv", row.names = FALSE)
 
 res <- res %>% 
   mutate(doi = substr(obj_id, 17, length(obj_id))) 
 
-alldata <- left_join(withdois, res)
+alldata <- left_join(withdois, res, by = "doi")
 
 write.csv(alldata, "alldata_20190408.csv", row.names = FALSE)
 
@@ -94,7 +96,7 @@ tweets_combined <- inner_join(alltweets, tweet_statuses_fetched_selection, by = 
 data2app <- tweets_combined %>% 
   filter(unit != 'Not published at Aalto University') %>% 
   mutate(year = str_sub(year, -4)) %>% 
-  select(unit, parent, doi, obj_id, title, year, occurred_at, tweet, screen_name, description, text, is_retweet, location)
+  select(unit, parent, doi, obj_id, title, id.x, year, occurred_at, tweet, screen_name, description, followers_count, text, is_retweet, location)
 
 #-------------------------
 #
@@ -122,12 +124,13 @@ dataforapp <- data_org %>%
          Retweet = is_retweet,
          `Screen name of (re)tweeter` = screen_name,
          Description = description,
-         #Followers = folcount,
+         Followers = followers_count,
          Location = location,
-         Year = year) %>% 
+         Year = year,
+         Id = id.x) %>% 
   mutate(Link = ifelse(!is.na(Link), paste0("<a target='blank' href='", Link, "'>Link to tweet</a>"), ""),
-         Article = paste0("<a target='blank' href='https://doi.org/", doi, "'>", title, "</a>")) %>% 
-  select(School, `Department or research area`, `Research group`, Year, Article, title, Tweet, Link, `Screen name of (re)tweeter`, Description, Location, Date, Retweet) %>% 
+         Article = paste0("<a target='blank' href='https://research.aalto.fi/en/publications/id(", Id, ").html'>", title, "</a>")) %>% 
+  select(School, `Department or research area`, `Research group`, Year, Article, title, Tweet, Link, `Screen name of (re)tweeter`, Description, Location, Followers, Date, Retweet) %>% 
   arrange(School, `Department or research area`, `Research group`, Year, Article, Date)
 
 
@@ -140,21 +143,18 @@ dataforapp <- data_org %>%
 stats_raw <- dataforapp %>% 
   group_by(School) %>% 
   mutate(Articles_by_school = n(),
-         #Tweets_by_school = sum(Tweet != ""),
          Tweets_by_school = sum(!is.na(Tweet)),
          Tweets_article_ratio_school = paste0(round(Tweets_by_school/Articles_by_school,1),"%")) %>% 
   arrange(desc(Tweets_by_school)) %>% 
   ungroup() %>% 
   group_by(School, `Department or research area`) %>% 
   mutate(Articles_by_dept = n(),
-         #Tweets_by_dept = sum(Tweet != ""),
          Tweets_by_dept = sum(!is.na(Tweet)),
          Tweets_article_ratio_dept = paste0(round(Tweets_by_dept/Articles_by_dept,1),"%")) %>% 
   arrange(desc(Tweets_by_dept)) %>% 
   ungroup() %>% 
   group_by(School, `Department or research area`,`Research group`) %>% 
   mutate(Articles_by_rg = n(),
-         #Tweets_by_rg = sum(Tweet != ""),
          Tweets_by_rg = sum(!is.na(Tweet)),
          Tweets_article_ratio_rg = paste0(round(Tweets_by_rg/Articles_by_rg,1),"%")) %>% 
   arrange(desc(Tweets_by_rg)) %>% 
