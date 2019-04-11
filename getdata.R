@@ -2,6 +2,7 @@ library(crevents)
 library(tidyverse)
 library(readxl)
 library(rtweet)
+library(lubridate)
 
 # Had to first save this to xslx via OO, see https://github.com/tidyverse/readxl/issues/496#issuecomment-436355364
 aalto <- read_excel("DOI_q-08_04_2019.xlsx")
@@ -134,11 +135,12 @@ dataforapp <- data_org %>%
   group_by(Id) %>%
   mutate(Elapsed = max(ymd_hms(Date)) - min(ymd_hms(Date)),
          Elapsed_in_hours = Elapsed / 3600,
-         `Life span (hr)` = as.numeric(round(Elapsed_in_hours, 1))) %>% # Time diff in hours between the first and last/latest tweet
+         Elapsed_in_days = Elapsed / 86400,
+         `Life span (days)` = as.numeric(round(Elapsed_in_days, 1))) %>% # Time diff in hours between the first and last/latest tweet
   ungroup() %>% 
   mutate(Link = ifelse(!is.na(Link), paste0("<a target='blank' href='", Link, "'>Link to tweet</a>"), ""),
          Article = paste0("<a target='blank' href='https://research.aalto.fi/en/publications/id(", Id, ").html'>", title, "</a>")) %>% 
-  select(School, `Department or research area`, `Research group`, Year, Article, title, Tweet, Link, `Screen name of (re)tweeter`, Description, Location, Followers, Date, Retweet, `Life span (hr)`) %>% 
+  select(School, `Department or research area`, `Research group`, Year, Article, title, Tweet, Link, `Screen name of (re)tweeter`, Description, Location, Followers, Date, Retweet, `Life span (days)`) %>% 
   arrange(School, `Department or research area`, `Research group`, Year, Article, Date)
 
 
