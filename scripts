@@ -71,7 +71,7 @@ java -jar ~/saxonee/saxon9ee.jar file.html parse.xsl > file_transformed.html
 
 #----- Javascript
 
-When the code below is included into the head of the HTML page inside a script element (and the Altmetric Javascript link is there too) and the page is fully reloaded, all rows of the first table element are traversed one by one, and a new div element with the needed attributes is appended after every second cell, i.e. that one with the DOI. 
+When the code below is included into the head of the HTML page inside a script element (and the Altmetric Javascript link is there too) and the page is fully reloaded, all rows of the first table element are traversed one by one, and a new div element with the needed attributes is appended after every third cell, i.e. that one with the DOI. 
 
 document.addEventListener('DOMContentLoaded', (event) => {
 	  
@@ -80,15 +80,34 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
 	  for (var i=0; i<rows.length; i++)
 	  {
-		tds = rows[i].getElementsByTagName("td");
+		 tds = rows[i].getElementsByTagName("td");
 
-	      	var addthis = tds[1].innerText;
-		var div = document.createElement("div");
-		div.setAttribute("class", "altmetric-embed");
-		div.setAttribute("data-badge-type", "donut");
-		div.setAttribute("data-doi", addthis);
-		tds[1].appendChild(div);
+	   var addthis = tds[2].innerText;
+		 var div = document.createElement("div");
+		 div.setAttribute("class", "altmetric-embed");
+		 div.setAttribute("data-badge-type", "donut");
+		 div.setAttribute("data-doi", addthis);
+		 tds[2].appendChild(div);
 	      
 	  }
 
 	})
+	
+#------- Python
+
+with open("file.html", "r") as fin:
+    with open("file_updated.html", "w+") as fout:
+        ln = 0
+        for line in fin:
+            ln += 1
+            if "<tr>" in line:
+                ln = 0
+            if '<td align="left">' in line and ln == 3:
+                r0 = line.split(">")
+                custombit = r0[1].split("<")[0]
+                lastsplit = line.split(',/td>')
+                lastbit = "></div></td>"
+                lastsplit[-1] = "<div class='altmetric-embed' data-badge-type='donut' data-doi=" + '"' + custombit + '"' + lastbit + "\n"
+                fout.write("<td>"+"".join(lastsplit))
+            else:
+                fout.write(line)
