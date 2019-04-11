@@ -64,11 +64,11 @@ ui <- function(request) {
              DT::dataTableOutput("summary", 
                                  width = "100%",
                                  height = "600px"))
-    ),
-    fluidRow(
-      box(
-        width = 1, downloadButton("data_aalto", "Download"))
     )
+    #, fluidRow(
+    #   box(
+    #     width = 1, downloadButton("data_aalto", "Download"))
+    # )
   )
   
   
