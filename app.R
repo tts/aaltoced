@@ -32,7 +32,7 @@ ui <- function(request) {
                   selected = NULL)
     ),
     tags$div(class="form-group shiny-input-container", 
-             HTML("<p>Aalto University CRIS data and CrossRef Event Data as of 2019-04-08</p>
+             HTML("<p>Data: Aalto University CRIS, CrossRef Event Data, Twitter API. Fetched 2019-04-08</p>
                   <p><a href='https://blogs.aalto.fi/suoritin/2019/04/10/everyday-altmetrics/'>About</a></p>")
              ))
   
@@ -170,18 +170,18 @@ server <- function(input, output, session) {
   output$longestlastingtweet <- renderValueBox({
     valueBox(
       value = "Longest life span",
-             paste0(rgData()[rgData()$`Life span (hr)` == max(rgData()$`Life span (hr)`), "title"][1], " (" , rgData()[rgData()$`Life span (hr)` == max(rgData()$`Life span (hr)`), "Life span (hr)"][1], " hours)"),
+             paste0(rgData()[rgData()$`Life span (days)` == max(rgData()$`Life span (days)`), "title"][1], " (" , rgData()[rgData()$`Life span (days)` == max(rgData()$`Life span (days)`), "Life span (days)"][1], " days)"),
       icon = icon("twitter"),
       color = "navy",
       width = "100%",
-      href = str_extract(rgData()[rgData()$`Life span (hr)` == max(rgData()$`Life span (hr)`), "Article"][1], "https://[^']+")
+      href = str_extract(rgData()[rgData()$`Life span (days)` == max(rgData()$`Life span (days)`), "Article"][1], "https://[^']+")
     )
   })
   
   output$medianage <- renderValueBox({
     valueBox(
       value = "Median life span", 
-      paste0(median(rgData()$`Life span (hr)`), " hours"),
+      paste0(median(rgData()$`Life span (days)`), " days"),
       icon = icon("twitter"),
       color = "light-blue",
       width = "100%"
@@ -194,7 +194,7 @@ server <- function(input, output, session) {
     
     df <- df %>% 
       rename(Tweets = Tweets_by_article) %>% 
-      select(School, `Department or research area`, `Research group`, Year, Article, Link, `Screen name of (re)tweeter`, Description, Location, Followers, Tweet, Retweet, Date, `Life span (hr)`)
+      select(School, `Department or research area`, `Research group`, Year, Article, Link, `Screen name of (re)tweeter`, Description, Location, Followers, Tweet, Retweet, Date, `Life span (days)`)
   })
   
   
@@ -219,7 +219,7 @@ server <- function(input, output, session) {
   
   totimeseries2 <- reactive({
     
-    ltweet <-  rgData()[rgData()$`Life span (hr)` == max(rgData()$`Life span (hr)`), ]
+    ltweet <-  rgData()[rgData()$`Life span (days)` == max(rgData()$`Life span (days)`), ]
     
     if ( nrow(ltweet) >= 1 & ltweet$Tweets_by_article[1] != 0 ) {
       stats2 <- ltweet %>%
